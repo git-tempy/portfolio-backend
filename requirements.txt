@@ -4,3 +4,5 @@ django-cors-headers>=4.3,<4.4
 django-modeltranslation>3.0,<4.0
 gunicorn
 whitenoise
+dj-database-url
+psycopg2-binary
