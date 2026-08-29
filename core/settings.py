@@ -31,6 +31,7 @@ ALLOWED_HOSTS = ['*']
 # Application definition
 
 INSTALLED_APPS = [
+    'modeltranslation',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -40,7 +41,6 @@ INSTALLED_APPS = [
     'corsheaders',
     'rest_framework',
     'core',
-    'modeltranslation',
 ]
 
 MIDDLEWARE = [
@@ -122,7 +122,8 @@ LANGUAGES = [
     ('jp', _('Japanese')),
     ('en', _('English')),
     ('ru', _('Russian')),
-    ('uz', _('Uzbek')),]
+    ('uz', _('Uzbek')),
+]
 MODELTRANSLATION_DEFAULT_LANGUAGE = 'en'
 
 TIME_ZONE = 'UTC'
