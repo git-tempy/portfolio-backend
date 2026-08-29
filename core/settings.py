@@ -117,7 +117,7 @@ AUTH_PASSWORD_VALIDATORS = [
 LANGUAGE_CODE = 'en-us'
 
 # Supported languages
-from django.utils.translation import gettext_lazy as _
+from django.utils.translation import gettext_noop as _
 LANGUAGES = [
     ('jp', _('Japanese')),
     ('en', _('English')),
