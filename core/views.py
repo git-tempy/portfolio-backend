@@ -339,7 +339,7 @@ import datetime
 @permission_classes([AllowAny])
 @throttle_classes([ContactThrottle])
 def api_contact(request):
-    serializer = ContactMessageSerializer(data={**request.data, 'status': 'New'})
+    serializer = ContactMessageSerializer(data={**request.data, 'status': 'new'})
     if serializer.is_valid():
         instance = serializer.save()
         
