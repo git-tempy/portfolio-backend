@@ -1,8 +1,8 @@
 from django.db import models
 
 class AboutMe(models.Model):
-    name = models.CharField(max_length=255, default="Feruzxon Muxtarov")
-    bio = models.TextField(default="Men Feruzxon Muxtarov — Toshkentda yashovchi ijodkor dizayner va art direktor. 5 yildan ortiq vaqt davomida brendlar uchun vizual identitet, raqamli mahsulotlar va marketing materiallarini yarataman. Maqsadim — har bir loyihaga estetika, ma'no va aniqlik kiritish.")
+    name = models.CharField(max_length=255, default="")
+    bio = models.TextField(default="")
     image = models.ImageField(upload_to='about/', null=True, blank=True)
     resume_pdf = models.FileField(upload_to='about/resume/', null=True, blank=True)
 
