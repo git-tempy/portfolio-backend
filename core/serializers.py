@@ -29,7 +29,7 @@ class CertificateSerializer(StorageModelSerializer):
         ]
 
 class SkillSerializer(StorageModelSerializer):
-    level = serializers.IntegerField(min_value=0, max_value=100)
+    level = serializers.IntegerField(min_value=0, max_value=100, allow_null=True, required=False)
     class Meta:
         model = Skill
         fields = ['id', 'name', 'name_uz', 'name_ru', 'name_en', 'name_jp', 'level', 'type', 'image']

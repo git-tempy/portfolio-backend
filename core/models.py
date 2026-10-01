@@ -30,7 +30,7 @@ class Skill(models.Model):
         ('Personal', 'Personal'),
     ]
     name = models.CharField(max_length=255)
-    level = models.IntegerField(default=90)
+    level = models.IntegerField(null=True, blank=True, default=None)
     type = models.CharField(max_length=50, choices=TYPE_CHOICES, default='Software')
     image = models.ImageField(upload_to='skills/', null=True, blank=True)
 
