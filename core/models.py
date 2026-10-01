@@ -17,7 +17,7 @@ class Certificate(models.Model):
     title = models.CharField(max_length=255)
     organization = models.CharField(max_length=255, blank=True)
     year = models.CharField(max_length=4, blank=True)
-    file = models.FileField(upload_to='certificates/')
+    file = models.FileField(upload_to='certificates/', blank=True)
     image = models.ImageField(upload_to='certificates/covers/', null=True, blank=True)
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
