@@ -1,5 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.test import TestCase
+from unittest.mock import patch
 from rest_framework.test import APIClient
 from core.authentication import issue_token
 from core.models import Project, ProjectCategory
@@ -15,7 +16,8 @@ class HardeningTests(TestCase):
         self.assertEqual(response['Location'], 'https://desone.vercel.app/desone_adminstration')
         self.assertEqual(response['X-Frame-Options'], 'DENY')
 
-    def test_login_limit(self):
+    @patch('core.throttling.time.time', return_value=1800000000)
+    def test_login_limit(self, clock):
         for _ in range(5):
             self.assertEqual(self.client.post('/api/login/', {'username': 'wrong', 'password': 'wrong'}, format='json').status_code, 400)
         self.assertEqual(self.client.post('/api/login/', {'username': 'wrong', 'password': 'wrong'}, format='json').status_code, 429)

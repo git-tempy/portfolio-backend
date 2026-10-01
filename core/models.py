@@ -92,21 +92,17 @@ class Project(models.Model):
                 counter += 1
             self.slug = slug
 
-        if self.file and self.type == 'pdf':
+        previous_file = type(self).objects.filter(pk=self.pk).values_list('file', flat=True).first() if self.pk else None
+        if self.file and self.type == 'pdf' and previous_file != self.file.name:
+            from pypdf import PdfReader
+            self.file.open('rb')
             try:
-                self.file.seek(0)
-                content = self.file.read()
-                self.file.seek(0)
-                import re
-                matches = re.findall(b'/Type\s*/Page\b', content)
-                if matches:
-                    self.total_pages = len(matches)
+                self.total_pages = len(PdfReader(self.file).pages)
+            finally:
+                if self.file._committed:
+                    self.file.close()
                 else:
-                    count_matches = re.findall(b'/Count\s*(\d+)', content)
-                    if count_matches:
-                        self.total_pages = max(int(m) for m in count_matches)
-            except Exception as e:
-                pass
+                    self.file.seek(0)
 
         super().save(*args, **kwargs)
 
@@ -136,6 +132,10 @@ class VisitorLog(models.Model):
 class ProjectImage(models.Model):
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='images')
     image = models.ImageField(upload_to='projects/images/')
+    position = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['position', 'id']
 
     def __str__(self):
         return f"Image for {self.project.title}"

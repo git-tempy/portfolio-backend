@@ -60,15 +60,33 @@ class ProjectImageSerializer(StorageModelSerializer):
         model = ProjectImage
         fields = ['id', 'image']
 
+class StableCategoryField(serializers.SlugRelatedField):
+    def to_internal_value(self, data):
+        from django.db.models import Q
+        if isinstance(data, int) or (isinstance(data, str) and data.isdigit()):
+            try:
+                return ProjectCategory.objects.get(pk=int(data))
+            except ProjectCategory.DoesNotExist:
+                self.fail('does_not_exist', slug_name='id', value=data)
+        query = Q()
+        for code in ('uz','ru','en','jp'):
+            query |= Q(**{f'name_{code}': data})
+        matches = list(ProjectCategory.objects.filter(query)[:2])
+        if len(matches) != 1:
+            raise serializers.ValidationError('Select a category by its ID.')
+        return matches[0]
+
 class ProjectSerializer(StorageModelSerializer):
-    category = serializers.SlugRelatedField(slug_field='name', queryset=ProjectCategory.objects.all())
+    type = serializers.ChoiceField(choices=['pdf','image'])
+    category_id = serializers.IntegerField(source='category.pk', read_only=True)
+    category = StableCategoryField(slug_field='name', queryset=ProjectCategory.objects.all())
     images = ProjectImageSerializer(many=True, read_only=True)
 
     class Meta:
         model = Project
         fields = [
             'id', 'title', 'title_uz', 'title_ru', 'title_en', 'title_jp',
-            'slug', 'category', 'type', 'file', 'cover_image',
+            'slug', 'category', 'category_id', 'type', 'file', 'cover_image',
             'description', 'description_uz', 'description_ru', 'description_en', 'description_jp',
             'main_hashtag', 'regular_hashtags', 'total_pages', 'images'
         ]

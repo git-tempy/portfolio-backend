@@ -295,8 +295,8 @@ def api_projects(request):
             from .models import ProjectImage
             with transaction.atomic():
                 project = serializer.save()
-                for image in validated_images:
-                    ProjectImage.objects.create(project=project, image=image)
+                for position, image in enumerate(validated_images):
+                    ProjectImage.objects.create(project=project, image=image, position=position)
 
             # Return fresh serialized data with nested images
             fresh_serializer = ProjectSerializer(project, context={'request': request})
@@ -324,9 +324,35 @@ def api_project_detail(request, pk_or_slug):
     elif request.method in ['PUT', 'PATCH']:
         serializer = ProjectSerializer(project, data=request.data, partial=True, context={'request': request})
         if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            replacement = None
+            if 'images' in request.data:
+                images_list = request.data.get('images') if request.content_type == 'application/json' else request.FILES.getlist('images')
+                if not isinstance(images_list, list) or len(images_list) > 30:
+                    raise ValidationError({'images':'Upload at most 30 images.'})
+                replacement = [RemoteImageField().run_validation(image) for image in images_list]
+            keep = request.data.get('keep_image_ids')
+            if keep is not None:
+                if not isinstance(keep, list) or not all(isinstance(pk,int) and not isinstance(pk,bool) for pk in keep) or len(keep) != len(set(keep)):
+                    raise ValidationError({'keep_image_ids':'Invalid gallery selection.'})
+                owned = set(project.images.values_list('id', flat=True))
+                if not set(keep).issubset(owned):
+                    raise ValidationError({'keep_image_ids':'Images must belong to this project.'})
+                if len(keep) + len(replacement or []) > 30:
+                    raise ValidationError({'images':'Upload at most 30 images.'})
+            from .models import ProjectImage
+            with transaction.atomic():
+                serializer.save()
+                if keep is not None:
+                    project.images.exclude(id__in=keep).delete()
+                    for position, pk in enumerate(keep):
+                        project.images.filter(pk=pk).update(position=position)
+                elif replacement is not None:
+                    project.images.all().delete()
+                for position, image in enumerate(replacement or [], start=len(keep or [])):
+                    ProjectImage.objects.create(project=project, image=image, position=position)
+            return Response(ProjectSerializer(project, context={'request': request}).data, status=200)
+        return Response(serializer.errors, status=400)
+
 
 from .models import ContactMessage, VisitorLog, ResumeDownloadLog
 from .serializers import ContactMessageSerializer, VisitorLogSerializer, ResumeDownloadLogSerializer
