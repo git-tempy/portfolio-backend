@@ -1,9 +1,11 @@
 from django.contrib.auth import authenticate
 from rest_framework.decorators import api_view, permission_classes, parser_classes
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAdminUser
+from .authentication import PublicReadAdminWrite, PublicCreateAdminRead, issue_token
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.parsers import MultiPartParser, FormParser
+from .uploads import UploadJSONParser, VerifiedStorageKey
 from .models import AboutMe
 from .serializers import AboutMeSerializer
 
@@ -21,6 +23,7 @@ def api_login(request):
         if user.is_staff or user.is_superuser:
             return Response({
                 'success': True,
+                'token': issue_token(user),
                 'username': user.username,
                 'email': user.email
             }, status=status.HTTP_200_OK)
@@ -30,10 +33,10 @@ def api_login(request):
         return Response({'error': 'Invalid username or password.'}, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['GET', 'POST'])
-@permission_classes([AllowAny])
-@parser_classes([MultiPartParser, FormParser])
+@permission_classes([PublicReadAdminWrite])
+@parser_classes([MultiPartParser, FormParser, UploadJSONParser])
 def api_about(request):
-    about_obj, created = AboutMe.objects.get_or_create(id=1)
+    about_obj, created = AboutMe.objects.get_or_create(id=1, defaults={'name': '', 'bio': ''})
     
     if request.method == 'GET':
         serializer = AboutMeSerializer(about_obj, context={'request': request})
@@ -51,8 +54,8 @@ from .models import Certificate
 from .serializers import CertificateSerializer
 
 @api_view(['GET', 'POST'])
-@permission_classes([AllowAny])
-@parser_classes([MultiPartParser, FormParser])
+@permission_classes([PublicReadAdminWrite])
+@parser_classes([MultiPartParser, FormParser, UploadJSONParser])
 def api_certificates(request):
     """List all certificates or create a new one."""
     if request.method == 'GET':
@@ -67,8 +70,8 @@ def api_certificates(request):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['DELETE', 'PUT', 'PATCH'])
-@permission_classes([AllowAny])
-@parser_classes([MultiPartParser, FormParser])
+@permission_classes([PublicReadAdminWrite])
+@parser_classes([MultiPartParser, FormParser, UploadJSONParser])
 def api_certificate_detail(request, pk):
     """Delete or update a certificate by primary key."""
     try:
@@ -90,8 +93,8 @@ from .models import Skill, Trait
 from .serializers import SkillSerializer, TraitSerializer
 
 @api_view(['GET', 'POST'])
-@permission_classes([AllowAny])
-@parser_classes([MultiPartParser, FormParser])
+@permission_classes([PublicReadAdminWrite])
+@parser_classes([MultiPartParser, FormParser, UploadJSONParser])
 def api_skills(request):
     if request.method == 'GET':
         skills = Skill.objects.all()
@@ -105,8 +108,8 @@ def api_skills(request):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['DELETE', 'PUT', 'PATCH'])
-@permission_classes([AllowAny])
-@parser_classes([MultiPartParser, FormParser])
+@permission_classes([PublicReadAdminWrite])
+@parser_classes([MultiPartParser, FormParser, UploadJSONParser])
 def api_skill_detail(request, pk):
     try:
         skill = Skill.objects.get(pk=pk)
@@ -124,7 +127,7 @@ def api_skill_detail(request, pk):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['GET', 'POST'])
-@permission_classes([AllowAny])
+@permission_classes([PublicReadAdminWrite])
 def api_traits(request):
     if request.method == 'GET':
         traits = Trait.objects.all()
@@ -138,7 +141,7 @@ def api_traits(request):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['DELETE', 'PUT', 'PATCH'])
-@permission_classes([AllowAny])
+@permission_classes([PublicReadAdminWrite])
 def api_trait_detail(request, pk):
     try:
         trait = Trait.objects.get(pk=pk)
@@ -159,8 +162,8 @@ from .models import Experience
 from .serializers import ExperienceSerializer
 
 @api_view(['GET', 'POST'])
-@permission_classes([AllowAny])
-@parser_classes([MultiPartParser, FormParser])
+@permission_classes([PublicReadAdminWrite])
+@parser_classes([MultiPartParser, FormParser, UploadJSONParser])
 def api_experiences(request):
     if request.method == 'GET':
         jobs = Experience.objects.all()
@@ -174,8 +177,8 @@ def api_experiences(request):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['DELETE', 'PUT', 'PATCH'])
-@permission_classes([AllowAny])
-@parser_classes([MultiPartParser, FormParser])
+@permission_classes([PublicReadAdminWrite])
+@parser_classes([MultiPartParser, FormParser, UploadJSONParser])
 def api_experience_detail(request, pk):
     try:
         job = Experience.objects.get(pk=pk)
@@ -197,8 +200,8 @@ from .models import Education
 from .serializers import EducationSerializer
 
 @api_view(['GET', 'POST'])
-@permission_classes([AllowAny])
-@parser_classes([MultiPartParser, FormParser])
+@permission_classes([PublicReadAdminWrite])
+@parser_classes([MultiPartParser, FormParser, UploadJSONParser])
 def api_education(request):
     if request.method == 'GET':
         items = Education.objects.all()
@@ -212,8 +215,8 @@ def api_education(request):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['DELETE', 'PUT', 'PATCH'])
-@permission_classes([AllowAny])
-@parser_classes([MultiPartParser, FormParser])
+@permission_classes([PublicReadAdminWrite])
+@parser_classes([MultiPartParser, FormParser, UploadJSONParser])
 def api_education_detail(request, pk):
     try:
         item = Education.objects.get(pk=pk)
@@ -235,7 +238,7 @@ from .models import ProjectCategory, Project
 from .serializers import ProjectCategorySerializer, ProjectSerializer
 
 @api_view(['GET', 'POST'])
-@permission_classes([AllowAny])
+@permission_classes([PublicReadAdminWrite])
 def api_categories(request):
     if request.method == 'GET':
         categories = ProjectCategory.objects.all()
@@ -249,7 +252,7 @@ def api_categories(request):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['DELETE', 'PUT', 'PATCH'])
-@permission_classes([AllowAny])
+@permission_classes([PublicReadAdminWrite])
 def api_category_detail(request, pk):
     try:
         category = ProjectCategory.objects.get(pk=pk)
@@ -267,8 +270,8 @@ def api_category_detail(request, pk):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['GET', 'POST'])
-@permission_classes([AllowAny])
-@parser_classes([MultiPartParser, FormParser])
+@permission_classes([PublicReadAdminWrite])
+@parser_classes([MultiPartParser, FormParser, UploadJSONParser])
 def api_projects(request):
     if request.method == 'GET':
         projects = Project.objects.all().order_by('-created_at')
@@ -281,7 +284,7 @@ def api_projects(request):
             
             # Save multiple images for Image Gallery
             from .models import ProjectImage
-            images_list = request.FILES.getlist('images')
+            images_list = (request.data.get('images', []) if request.content_type == 'application/json' else request.FILES.getlist('images'))
             for img in images_list:
                 ProjectImage.objects.create(project=project, image=img)
             
@@ -291,8 +294,8 @@ def api_projects(request):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['GET', 'DELETE', 'PUT', 'PATCH'])
-@permission_classes([AllowAny])
-@parser_classes([MultiPartParser, FormParser])
+@permission_classes([PublicReadAdminWrite])
+@parser_classes([MultiPartParser, FormParser, UploadJSONParser])
 def api_project_detail(request, pk_or_slug):
     try:
         if str(pk_or_slug).isdigit():
@@ -503,7 +506,7 @@ def api_contact(request):
 
 
 @api_view(['GET', 'POST'])
-@permission_classes([AllowAny])
+@permission_classes([PublicCreateAdminRead])
 def api_resume_downloads(request):
     if request.method == 'GET':
         logs = ResumeDownloadLog.objects.all().order_by('-created_at')
@@ -684,7 +687,7 @@ def api_resume_downloads(request):
 
 
 @api_view(['DELETE'])
-@permission_classes([AllowAny])
+@permission_classes([IsAdminUser])
 def api_resume_download_detail(request, pk):
     try:
         log = ResumeDownloadLog.objects.get(pk=pk)
@@ -696,14 +699,14 @@ def api_resume_download_detail(request, pk):
 
 
 @api_view(['GET'])
-@permission_classes([AllowAny])
+@permission_classes([IsAdminUser])
 def api_messages(request):
     messages = ContactMessage.objects.all().order_by('-created_at')
     serializer = ContactMessageSerializer(messages, many=True)
     return Response(serializer.data, status=status.HTTP_200_OK)
 
 @api_view(['DELETE', 'PATCH'])
-@permission_classes([AllowAny])
+@permission_classes([IsAdminUser])
 def api_message_detail(request, pk):
     try:
         msg = ContactMessage.objects.get(pk=pk)
@@ -741,7 +744,7 @@ def api_visitor_log(request):
     return Response({'success': False, 'message': 'Too many requests'}, status=status.HTTP_200_OK)
 
 @api_view(['GET'])
-@permission_classes([AllowAny])
+@permission_classes([IsAdminUser])
 def api_dashboard_stats(request):
     # Total counts
     total_real_views = VisitorLog.objects.count()
@@ -799,20 +802,6 @@ def api_dashboard_stats(request):
             'timestamp': m.created_at
         })
 
-    # Latest skills (up to 3) - since Skill has no created_at, we order by id desc
-    # and just give a dummy "recently" or "some days ago" timestamp to keep it simple,
-    # or just show them if any
-    latest_skills = Skill.objects.all().order_by('-id')[:3]
-    for i, s in enumerate(latest_skills):
-        # Deterministic dummy time since we don't have created_at
-        time_str = f"{i+1} days ago"
-        activities.append({
-            'dot_class': 'dot-purple',
-            'message': f"Skills yangilandi: '{s.name}' -> {s.level}%",
-            'time': time_str,
-            'timestamp': timezone.now() - datetime.timedelta(days=i+1)
-        })
-
     # Sort activities by timestamp descending
     activities.sort(key=lambda x: x['timestamp'], reverse=True)
     # Map to clean items for frontend
@@ -821,14 +810,6 @@ def api_dashboard_stats(request):
         'message': act['message'],
         'time': act['time']
     } for act in activities[:5]] # Top 5 recent activities
-
-    # If activities is empty, supply default template ones
-    if not formatted_activities:
-        formatted_activities = [
-            {'dot_class': 'dot-lime', 'message': "Yangi loyiha qo'shildi: 'Crypto Wallet Website'", 'time': '2 hours ago'},
-            {'dot_class': 'dot-cyan', 'message': "Yangi murojaat qabul qilindi: Asrorbek Alimov", 'time': 'Yesterday'},
-            {'dot_class': 'dot-purple', 'message': "Skills yangilandi: 'Figma UI/UX' -> 95%", 'time': '3 days ago'}
-        ]
 
     return Response({
         'total_views': total_views,

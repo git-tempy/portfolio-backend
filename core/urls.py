@@ -28,7 +28,10 @@ from .views import (
     api_education, api_education_detail, api_resume_downloads, api_resume_download_detail
 )
 
+from .uploads import upload_url
+
 urlpatterns = [
+    path('api/uploads/presign/', upload_url, name='upload_url'),
     path('admin/', admin.site.urls),
     path('api/login/', api_login, name='api_login'),
     path('api/about/', api_about, name='api_about'),

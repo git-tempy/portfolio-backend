@@ -1,7 +1,17 @@
 from rest_framework import serializers
+from django.db import models
+from .uploads import RemoteFileField, RemoteImageField
+
+class StorageModelSerializer(serializers.ModelSerializer):
+    serializer_field_mapping = {
+        **serializers.ModelSerializer.serializer_field_mapping,
+        models.FileField: RemoteFileField,
+        models.ImageField: RemoteImageField,
+    }
+
 from .models import AboutMe, Certificate, Skill, Trait, Experience, ProjectCategory, Project, ContactMessage, VisitorLog, ProjectImage, Education, ResumeDownloadLog
 
-class AboutMeSerializer(serializers.ModelSerializer):
+class AboutMeSerializer(StorageModelSerializer):
     class Meta:
         model = AboutMe
         fields = [
@@ -10,7 +20,7 @@ class AboutMeSerializer(serializers.ModelSerializer):
             'image', 'resume_pdf'
         ]
 
-class CertificateSerializer(serializers.ModelSerializer):
+class CertificateSerializer(StorageModelSerializer):
     class Meta:
         model = Certificate
         fields = [
@@ -18,17 +28,17 @@ class CertificateSerializer(serializers.ModelSerializer):
             'organization', 'year', 'file', 'image'
         ]
 
-class SkillSerializer(serializers.ModelSerializer):
+class SkillSerializer(StorageModelSerializer):
     class Meta:
         model = Skill
         fields = ['id', 'name', 'name_uz', 'name_ru', 'name_en', 'name_jp', 'level', 'type', 'image']
 
-class TraitSerializer(serializers.ModelSerializer):
+class TraitSerializer(StorageModelSerializer):
     class Meta:
         model = Trait
         fields = ['id', 'text', 'text_uz', 'text_ru', 'text_en', 'text_jp', 'type']
 
-class ExperienceSerializer(serializers.ModelSerializer):
+class ExperienceSerializer(StorageModelSerializer):
     class Meta:
         model = Experience
         fields = [
@@ -37,19 +47,19 @@ class ExperienceSerializer(serializers.ModelSerializer):
             'period', 'desc', 'desc_uz', 'desc_ru', 'desc_en', 'desc_jp', 'logo'
         ]
 
-class ProjectCategorySerializer(serializers.ModelSerializer):
+class ProjectCategorySerializer(StorageModelSerializer):
     projects_count = serializers.IntegerField(source='projects.count', read_only=True)
 
     class Meta:
         model = ProjectCategory
         fields = ['id', 'name', 'name_uz', 'name_ru', 'name_en', 'name_jp', 'status', 'projects_count']
 
-class ProjectImageSerializer(serializers.ModelSerializer):
+class ProjectImageSerializer(StorageModelSerializer):
     class Meta:
         model = ProjectImage
         fields = ['id', 'image']
 
-class ProjectSerializer(serializers.ModelSerializer):
+class ProjectSerializer(StorageModelSerializer):
     category = serializers.SlugRelatedField(slug_field='name', queryset=ProjectCategory.objects.all())
     images = ProjectImageSerializer(many=True, read_only=True)
 
@@ -62,18 +72,18 @@ class ProjectSerializer(serializers.ModelSerializer):
             'main_hashtag', 'regular_hashtags', 'total_pages', 'images'
         ]
 
-class ContactMessageSerializer(serializers.ModelSerializer):
+class ContactMessageSerializer(StorageModelSerializer):
     class Meta:
         model = ContactMessage
         fields = ['id', 'name', 'email', 'company', 'role', 'message', 'status', 'created_at']
 
-class VisitorLogSerializer(serializers.ModelSerializer):
+class VisitorLogSerializer(StorageModelSerializer):
     class Meta:
         model = VisitorLog
         fields = ['id', 'ip_address', 'user_agent', 'created_at']
 
 
-class EducationSerializer(serializers.ModelSerializer):
+class EducationSerializer(StorageModelSerializer):
     class Meta:
         model = Education
         fields = [
@@ -82,7 +92,7 @@ class EducationSerializer(serializers.ModelSerializer):
         ]
 
 
-class ResumeDownloadLogSerializer(serializers.ModelSerializer):
+class ResumeDownloadLogSerializer(StorageModelSerializer):
     class Meta:
         model = ResumeDownloadLog
         fields = ['id', 'name', 'phone', 'email', 'purpose', 'created_at']
