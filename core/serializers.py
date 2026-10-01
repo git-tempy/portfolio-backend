@@ -29,6 +29,7 @@ class CertificateSerializer(StorageModelSerializer):
         ]
 
 class SkillSerializer(StorageModelSerializer):
+    level = serializers.IntegerField(min_value=0, max_value=100)
     class Meta:
         model = Skill
         fields = ['id', 'name', 'name_uz', 'name_ru', 'name_en', 'name_jp', 'level', 'type', 'image']
@@ -73,9 +74,11 @@ class ProjectSerializer(StorageModelSerializer):
         ]
 
 class ContactMessageSerializer(StorageModelSerializer):
+    message = serializers.CharField(max_length=10000)
     class Meta:
         model = ContactMessage
         fields = ['id', 'name', 'email', 'company', 'role', 'message', 'status', 'created_at']
+        read_only_fields = ['id', 'created_at']
 
 class VisitorLogSerializer(StorageModelSerializer):
     class Meta:

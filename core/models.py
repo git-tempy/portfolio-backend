@@ -165,3 +165,9 @@ class ResumeDownloadLog(models.Model):
 
 
 
+
+class RequestLimit(models.Model):
+    key = models.CharField(max_length=64, primary_key=True)
+    window = models.BigIntegerField(default=0)
+    count = models.PositiveIntegerField(default=0)
+    updated_at = models.DateTimeField(auto_now=True)

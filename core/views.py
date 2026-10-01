@@ -1,5 +1,9 @@
 from django.contrib.auth import authenticate
-from rest_framework.decorators import api_view, permission_classes, parser_classes
+from django.db import transaction
+from rest_framework.exceptions import ValidationError
+from .uploads import RemoteImageField
+from rest_framework.decorators import api_view, permission_classes, parser_classes, throttle_classes
+from .throttling import LoginThrottle, ContactThrottle, VisitorThrottle
 from rest_framework.permissions import AllowAny, IsAdminUser
 from .authentication import PublicReadAdminWrite, PublicCreateAdminRead, issue_token
 from rest_framework.response import Response
@@ -11,6 +15,7 @@ from .serializers import AboutMeSerializer
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([LoginThrottle])
 def api_login(request):
     username = request.data.get('username')
     password = request.data.get('password')
@@ -260,6 +265,8 @@ def api_category_detail(request, pk):
         return Response(status=status.HTTP_404_NOT_FOUND)
         
     if request.method == 'DELETE':
+        if category.projects.exists():
+            return Response({'error': 'Move or delete the projects before deleting this category.'}, status=409)
         category.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
     elif request.method in ['PUT', 'PATCH']:
@@ -274,20 +281,23 @@ def api_category_detail(request, pk):
 @parser_classes([MultiPartParser, FormParser, UploadJSONParser])
 def api_projects(request):
     if request.method == 'GET':
-        projects = Project.objects.all().order_by('-created_at')
+        projects = Project.objects.prefetch_related('images').select_related('category').order_by('-created_at')
         serializer = ProjectSerializer(projects, many=True, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
     elif request.method == 'POST':
         serializer = ProjectSerializer(data=request.data, context={'request': request})
         if serializer.is_valid():
-            project = serializer.save()
-            
-            # Save multiple images for Image Gallery
-            from .models import ProjectImage
             images_list = (request.data.get('images', []) if request.content_type == 'application/json' else request.FILES.getlist('images'))
-            for img in images_list:
-                ProjectImage.objects.create(project=project, image=img)
-            
+            if not isinstance(images_list, list) or len(images_list) > 30:
+                raise ValidationError({'images': 'Upload at most 30 images.'})
+            field = RemoteImageField()
+            validated_images = [field.run_validation(image) for image in images_list]
+            from .models import ProjectImage
+            with transaction.atomic():
+                project = serializer.save()
+                for image in validated_images:
+                    ProjectImage.objects.create(project=project, image=image)
+
             # Return fresh serialized data with nested images
             fresh_serializer = ProjectSerializer(project, context={'request': request})
             return Response(fresh_serializer.data, status=status.HTTP_201_CREATED)
@@ -327,8 +337,9 @@ import datetime
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([ContactThrottle])
 def api_contact(request):
-    serializer = ContactMessageSerializer(data=request.data)
+    serializer = ContactMessageSerializer(data={**request.data, 'status': 'New'})
     if serializer.is_valid():
         instance = serializer.save()
         
@@ -507,6 +518,7 @@ def api_contact(request):
 
 @api_view(['GET', 'POST'])
 @permission_classes([PublicCreateAdminRead])
+@throttle_classes([ContactThrottle])
 def api_resume_downloads(request):
     if request.method == 'GET':
         logs = ResumeDownloadLog.objects.all().order_by('-created_at')
@@ -725,6 +737,7 @@ def api_message_detail(request, pk):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([VisitorThrottle])
 def api_visitor_log(request):
     ip_address = request.META.get('HTTP_X_FORWARDED_FOR')
     if ip_address:
@@ -776,7 +789,7 @@ def api_dashboard_stats(request):
     activities = []
     
     # Latest projects (up to 3)
-    latest_projects = Project.objects.all().order_by('-created_at')[:3]
+    latest_projects = Project.objects.prefetch_related('images').select_related('category').order_by('-created_at')[:3]
     for p in latest_projects:
         # Time ago string
         time_str = timesince(p.created_at).split(',')[0] + ' ago'
