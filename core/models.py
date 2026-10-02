@@ -122,6 +122,8 @@ class ContactMessage(models.Model):
         return f"{self.name} - {self.company or 'No Company'}"
 
 class VisitorLog(models.Model):
+    device_id = models.UUIDField(null=True, blank=True, db_index=True)
+    device_type = models.CharField(max_length=10, default='unknown', choices=[('mobile','Mobile'),('tablet','Tablet'),('desktop','Desktop'),('unknown','Unknown')])
     ip_address = models.GenericIPAddressField(null=True, blank=True)
     user_agent = models.TextField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -171,3 +173,14 @@ class RequestLimit(models.Model):
     window = models.BigIntegerField(default=0)
     count = models.PositiveIntegerField(default=0)
     updated_at = models.DateTimeField(auto_now=True)
+
+class LifeMoment(models.Model):
+    title = models.CharField(max_length=180)
+    description = models.TextField(blank=True)
+    date = models.DateField()
+    image = models.ImageField(upload_to='life/', null=True, blank=True)
+    is_sample = models.BooleanField(default=False)
+    class Meta:
+        ordering = ['-date', '-id']
+    def __str__(self):
+        return self.title

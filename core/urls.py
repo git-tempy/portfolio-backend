@@ -21,7 +21,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 
 from .views import (
-    api_login, api_about, api_certificates, api_certificate_detail, 
+    api_life, api_life_detail, api_login, api_about, api_certificates, api_certificate_detail, 
     api_skills, api_skill_detail, api_traits, api_trait_detail, 
     api_experiences, api_experience_detail,
     api_categories, api_category_detail, api_projects, api_project_detail,
@@ -32,6 +32,8 @@ from .views import (
 from .uploads import upload_url
 
 urlpatterns = [
+    path('api/life/', api_life),
+    path('api/life/<int:pk>/', api_life_detail),
     path('', RedirectView.as_view(url='https://desone.vercel.app/desone_adminstration', permanent=False)),
     path('api/uploads/presign/', upload_url, name='upload_url'),
     path('admin/', admin.site.urls),

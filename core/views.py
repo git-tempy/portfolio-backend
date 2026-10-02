@@ -1,5 +1,8 @@
+from django.conf import settings
 from django.contrib.auth import authenticate
 from django.db import transaction
+from django.db.models import Count, Max, Min
+import uuid
 from rest_framework.exceptions import ValidationError
 from .uploads import RemoteImageField
 from rest_framework.decorators import api_view, permission_classes, parser_classes, throttle_classes
@@ -530,8 +533,8 @@ def api_contact(request):
             send_mail(
                 subject=subject,
                 message=message_body,
-                from_email='xanter9656@gmail.com',
-                recipient_list=['xanter9656@gmail.com'],
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[settings.EMAIL_HOST_USER] if settings.EMAIL_HOST_USER else [],
                 html_message=html_content,
                 fail_silently=False,
             )
@@ -712,8 +715,8 @@ def api_resume_downloads(request):
                 send_mail(
                     subject=subject,
                     message=message_body,
-                    from_email='xanter9656@gmail.com',
-                    recipient_list=['xanter9656@gmail.com'],
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    recipient_list=[settings.EMAIL_HOST_USER] if settings.EMAIL_HOST_USER else [],
                     html_message=html_content,
                     fail_silently=False,
                 )
@@ -765,6 +768,14 @@ def api_message_detail(request, pk):
 @permission_classes([AllowAny])
 @throttle_classes([VisitorThrottle])
 def api_visitor_log(request):
+    device_id = request.data.get('device_id')
+    try:
+        device_id = uuid.UUID(str(device_id)) if device_id else None
+    except (ValueError, AttributeError):
+        return Response({'device_id': 'Invalid device ID.'}, status=400)
+    device_type = request.data.get('device_type', 'unknown')
+    if device_type not in ('mobile', 'tablet', 'desktop', 'unknown'):
+        return Response({'device_type': 'Invalid device type.'}, status=400)
     ip_address = request.META.get('HTTP_X_FORWARDED_FOR')
     if ip_address:
         ip_address = ip_address.split(',')[0].strip()
@@ -775,10 +786,11 @@ def api_visitor_log(request):
     
     # Simple rate limit to prevent duplicate logs on immediate page refresh
     thirty_seconds_ago = timezone.now() - datetime.timedelta(seconds=30)
-    recent_log = VisitorLog.objects.filter(ip_address=ip_address, created_at__gte=thirty_seconds_ago).exists()
+    recent = VisitorLog.objects.filter(created_at__gte=thirty_seconds_ago)
+    recent_log = (recent.filter(device_id=device_id) if device_id else recent.filter(ip_address=ip_address)).exists()
     
     if not recent_log:
-        VisitorLog.objects.create(ip_address=ip_address, user_agent=user_agent)
+        VisitorLog.objects.create(ip_address=ip_address, user_agent=user_agent, device_id=device_id, device_type=device_type)
         return Response({'success': True}, status=status.HTTP_201_CREATED)
     return Response({'success': False, 'message': 'Too many requests'}, status=status.HTTP_200_OK)
 
@@ -857,7 +869,37 @@ def api_dashboard_stats(request):
         'new_messages': new_messages,
         'total_skills': total_skills,
         'visitor_analytics': days_data,
+        'device_summary': list(VisitorLog.objects.exclude(device_id=None).values('device_type').annotate(count=Count('device_id', distinct=True)).order_by('device_type')),
+        'visitor_devices': list(VisitorLog.objects.exclude(device_id=None).values('device_id').annotate(visits=Count('id'), first_seen=Min('created_at'), last_seen=Max('created_at'), device_type=Max('device_type')).order_by('-last_seen')[:100]),
         'recent_activities': formatted_activities
     }, status=status.HTTP_200_OK)
 
 
+
+from .models import LifeMoment
+from .serializers import LifeMomentSerializer
+@api_view(['GET', 'POST'])
+@permission_classes([PublicReadAdminWrite])
+@parser_classes([MultiPartParser, FormParser, UploadJSONParser])
+def api_life(request):
+    if request.method == 'GET':
+        return Response(LifeMomentSerializer(LifeMoment.objects.all(), many=True, context={'request': request}).data)
+    serializer = LifeMomentSerializer(data=request.data, context={'request': request})
+    serializer.is_valid(raise_exception=True)
+    serializer.save()
+    return Response(serializer.data, status=201)
+
+@api_view(['GET', 'PATCH', 'DELETE'])
+@permission_classes([PublicReadAdminWrite])
+@parser_classes([MultiPartParser, FormParser, UploadJSONParser])
+def api_life_detail(request, pk):
+    from django.shortcuts import get_object_or_404
+    item = get_object_or_404(LifeMoment, pk=pk)
+    if request.method == 'DELETE':
+        item.delete()
+        return Response(status=204)
+    serializer = LifeMomentSerializer(item, data=request.data, partial=True, context={'request': request}) if request.method == 'PATCH' else LifeMomentSerializer(item, context={'request': request})
+    if request.method == 'PATCH':
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+    return Response(serializer.data)

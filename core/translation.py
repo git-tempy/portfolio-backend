@@ -33,3 +33,8 @@ translator.register(Skill, SkillTranslationOptions)
 translator.register(Trait, TraitTranslationOptions)
 translator.register(Experience, ExperienceTranslationOptions)
 translator.register(Education, EducationTranslationOptions)
+
+from .models import LifeMoment
+class LifeMomentTranslationOptions(TranslationOptions):
+    fields = ('title', 'description')
+translator.register(LifeMoment, LifeMomentTranslationOptions)

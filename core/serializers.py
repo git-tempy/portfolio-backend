@@ -118,3 +118,9 @@ class ResumeDownloadLogSerializer(StorageModelSerializer):
         model = ResumeDownloadLog
         fields = ['id', 'name', 'phone', 'email', 'purpose', 'created_at']
 
+
+from .models import LifeMoment
+class LifeMomentSerializer(StorageModelSerializer):
+    class Meta:
+        model = LifeMoment
+        fields = ['id', 'title', 'title_uz', 'title_en', 'title_ru', 'title_jp', 'description', 'description_uz', 'description_en', 'description_ru', 'description_jp', 'date', 'image', 'is_sample']

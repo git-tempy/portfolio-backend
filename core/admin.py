@@ -24,3 +24,6 @@ admin.site.register(Trait)
 admin.site.register(Experience)
 admin.site.register(ContactMessage)
 admin.site.register(ResumeDownloadLog)
+
+from .models import LifeMoment
+admin.site.register(LifeMoment)
