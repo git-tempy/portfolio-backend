@@ -859,7 +859,8 @@ def api_dashboard_stats(request):
     formatted_activities = [{
         'dot_class': act['dot_class'],
         'message': act['message'],
-        'time': act['time']
+        'time': act['time'],
+        'timestamp': act['timestamp']
     } for act in activities[:5]] # Top 5 recent activities
 
     return Response({
