@@ -28,6 +28,7 @@ class Skill(models.Model):
     TYPE_CHOICES = [
         ('Software', 'Software'),
         ('Personal', 'Personal'),
+        ('Service', 'Service'),
     ]
     name = models.CharField(max_length=255)
     level = models.IntegerField(null=True, blank=True, default=None)
