@@ -5,13 +5,27 @@ from django.utils import timezone
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 from core.authentication import issue_token
-from core.models import VisitorLog, Skill, Experience, Education, Certificate, Project, ProjectCategory
+from core.models import VisitorLog, VisitorDevice, Skill, Experience, Education, Certificate, Project, ProjectCategory
 
 class DeviceMediaTests(TestCase):
     def setUp(self):
         self.public=APIClient();self.admin=APIClient()
         user=get_user_model().objects.create_user('device-test',password='test-only',is_staff=True)
         self.admin.credentials(HTTP_AUTHORIZATION='Bearer '+issue_token(user))
+
+    def test_owner_device_is_excluded_from_past_and_future_visits(self):
+        device = str(uuid.uuid4())
+        payload = {'device_id':device, 'device_type':'mobile'}
+        self.public.post('/api/visitor/log/', payload, format='json')
+        VisitorDevice.objects.filter(device_id=device).update(excluded_from_analytics=True)
+        response = self.public.post('/api/visitor/log/', payload, format='json')
+        self.assertTrue(response.json()['excluded'])
+        self.assertEqual(VisitorLog.objects.count(), 1)
+        stats = self.admin.get('/api/dashboard/stats/').json()
+        self.assertEqual(stats['total_views'], 0)
+        self.assertEqual(stats['visitor_entries'], [])
+        self.assertEqual(stats['visitor_devices'], [])
+        self.assertEqual(sum(row['count'] for row in stats['visitor_analytics']), 0)
 
     def test_returning_device_keeps_identity_and_counts_visits(self):
         device=str(uuid.uuid4())

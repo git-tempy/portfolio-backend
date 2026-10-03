@@ -123,6 +123,7 @@ class ContactMessage(models.Model):
 
 class VisitorDevice(models.Model):
     device_id = models.UUIDField(unique=True)
+    excluded_from_analytics = models.BooleanField(default=False)
 
 class VisitorLog(models.Model):
     device_id = models.UUIDField(null=True, blank=True, db_index=True)

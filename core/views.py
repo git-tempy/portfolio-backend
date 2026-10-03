@@ -775,6 +775,8 @@ def api_visitor_log(request):
         device_id = uuid.UUID(str(device_id)) if device_id else None
     except (ValueError, AttributeError):
         return Response({'device_id': 'Invalid device ID.'}, status=400)
+    if device_id and VisitorDevice.objects.filter(device_id=device_id, excluded_from_analytics=True).exists():
+        return Response({'success': True, 'excluded': True}, status=200)
     device_type = request.data.get('device_type', 'unknown')
     if device_type not in ('mobile', 'tablet', 'desktop', 'unknown'):
         return Response({'device_type': 'Invalid device type.'}, status=400)
@@ -801,8 +803,9 @@ def api_visitor_log(request):
 @api_view(['GET'])
 @permission_classes([IsAdminUser])
 def api_dashboard_stats(request):
+    visible_visits = VisitorLog.objects.exclude(device_id__in=VisitorDevice.objects.filter(excluded_from_analytics=True).values('device_id'))
     # Total counts
-    total_real_views = VisitorLog.objects.count()
+    total_real_views = visible_visits.count()
     total_views = total_real_views
     
     total_projects = Project.objects.count()
@@ -828,7 +831,7 @@ def api_dashboard_stats(request):
             next_day = day + datetime.timedelta(days=1)
         start = timezone.make_aware(datetime.datetime.combine(day, datetime.time.min), chart_timezone)
         end = timezone.make_aware(datetime.datetime.combine(next_day, datetime.time.min), chart_timezone)
-        counts = dict(VisitorLog.objects.filter(created_at__gte=start, created_at__lt=end).values('device_type').annotate(total=Count('id')).values_list('device_type', 'total'))
+        counts = dict(visible_visits.filter(created_at__gte=start, created_at__lt=end).values('device_type').annotate(total=Count('id')).values_list('device_type', 'total'))
         days_data.append({'day':day.strftime('%a'), 'date':day.isoformat(), 'count':sum(counts.values()), 'devices':{kind:counts.get(kind, 0) for kind in ('desktop', 'mobile', 'tablet', 'unknown')}})
 
     # Recent activities
@@ -871,7 +874,7 @@ def api_dashboard_stats(request):
         'timestamp': act['timestamp']
     } for act in activities[:5]] # Top 5 recent activities
 
-    visits = VisitorLog.objects.exclude(device_id=None).order_by('-created_at', '-id')
+    visits = visible_visits.exclude(device_id=None).order_by('-created_at', '-id')
     requested_device = request.query_params.get('visits_device')
     if requested_device:
         try:
@@ -894,8 +897,8 @@ def api_dashboard_stats(request):
         'new_messages': new_messages,
         'total_skills': total_skills,
         'visitor_analytics': days_data,
-        'device_summary': list(VisitorLog.objects.exclude(device_id=None).values('device_type').annotate(count=Count('device_id', distinct=True)).order_by('device_type')),
-        'visitor_devices': list(VisitorLog.objects.exclude(device_id=None).values('device_id').annotate(short_id=Subquery(VisitorDevice.objects.filter(device_id=OuterRef('device_id')).values('id')[:1]), visits=Count('id'), first_seen=Min('created_at'), last_seen=Max('created_at'), device_type=Max('device_type'), ip_address=Subquery(VisitorLog.objects.filter(device_id=OuterRef('device_id')).order_by('-created_at').values('ip_address')[:1]), country_code=Subquery(VisitorLog.objects.filter(device_id=OuterRef('device_id')).order_by('-created_at').values('country_code')[:1]), region=Subquery(VisitorLog.objects.filter(device_id=OuterRef('device_id')).order_by('-created_at').values('region')[:1]), city=Subquery(VisitorLog.objects.filter(device_id=OuterRef('device_id')).order_by('-created_at').values('city')[:1])).order_by('-last_seen')[:100]),
+        'device_summary': list(visible_visits.exclude(device_id=None).values('device_type').annotate(count=Count('device_id', distinct=True)).order_by('device_type')),
+        'visitor_devices': list(visible_visits.exclude(device_id=None).values('device_id').annotate(short_id=Subquery(VisitorDevice.objects.filter(device_id=OuterRef('device_id')).values('id')[:1]), visits=Count('id'), first_seen=Min('created_at'), last_seen=Max('created_at'), device_type=Max('device_type'), ip_address=Subquery(visible_visits.filter(device_id=OuterRef('device_id')).order_by('-created_at').values('ip_address')[:1]), country_code=Subquery(visible_visits.filter(device_id=OuterRef('device_id')).order_by('-created_at').values('country_code')[:1]), region=Subquery(visible_visits.filter(device_id=OuterRef('device_id')).order_by('-created_at').values('region')[:1]), city=Subquery(visible_visits.filter(device_id=OuterRef('device_id')).order_by('-created_at').values('city')[:1])).order_by('-last_seen')[:100]),
         'recent_activities': formatted_activities
     }, status=status.HTTP_200_OK)
 
