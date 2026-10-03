@@ -3,6 +3,8 @@ from django.contrib.auth import authenticate
 from django.db import transaction
 from django.db.models import Count, Max, Min, OuterRef, Subquery
 import uuid
+from urllib.parse import unquote
+from .models import VisitorDevice
 from rest_framework.exceptions import ValidationError
 from .uploads import RemoteImageField
 from rest_framework.decorators import api_view, permission_classes, parser_classes, throttle_classes
@@ -790,7 +792,9 @@ def api_visitor_log(request):
     recent_log = (recent.filter(device_id=device_id) if device_id else recent.filter(ip_address=ip_address)).exists()
     
     if not recent_log:
-        VisitorLog.objects.create(ip_address=ip_address, user_agent=user_agent, device_id=device_id, device_type=device_type)
+        if device_id:
+            VisitorDevice.objects.get_or_create(device_id=device_id)
+        VisitorLog.objects.create(ip_address=ip_address, user_agent=user_agent, device_id=device_id, device_type=device_type, country_code=request.META.get('HTTP_X_VERCEL_IP_COUNTRY', '')[:2], region=unquote(request.META.get('HTTP_X_VERCEL_IP_COUNTRY_REGION', ''))[:100], city=unquote(request.META.get('HTTP_X_VERCEL_IP_CITY', ''))[:100])
         return Response({'success': True}, status=status.HTTP_201_CREATED)
     return Response({'success': False, 'message': 'Too many requests'}, status=status.HTTP_200_OK)
 
@@ -863,7 +867,23 @@ def api_dashboard_stats(request):
         'timestamp': act['timestamp']
     } for act in activities[:5]] # Top 5 recent activities
 
+    visits = VisitorLog.objects.exclude(device_id=None).order_by('-created_at', '-id')
+    requested_device = request.query_params.get('visits_device')
+    if requested_device:
+        try:
+            visits = visits.filter(device_id=uuid.UUID(requested_device))
+        except (ValueError, AttributeError):
+            return Response({'error': 'Invalid device ID.'}, status=400)
+    try:
+        visits_page = max(0, int(request.query_params.get('visits_page', 0)))
+    except ValueError:
+        return Response({'error': 'Invalid page.'}, status=400)
+    visits = visits.annotate(short_id=Subquery(VisitorDevice.objects.filter(device_id=OuterRef('device_id')).values('id')[:1]))
+    visit_rows = list(visits.values('id', 'device_id', 'short_id', 'device_type', 'ip_address', 'country_code', 'region', 'city', 'created_at')[visits_page * 30:(visits_page + 1) * 30 + 1])
+
     return Response({
+        'visitor_entries': visit_rows[:30],
+        'visitor_entries_more': len(visit_rows) > 30,
         'total_views': total_views,
         'total_projects': total_projects,
         'total_messages': total_messages,
@@ -871,7 +891,7 @@ def api_dashboard_stats(request):
         'total_skills': total_skills,
         'visitor_analytics': days_data,
         'device_summary': list(VisitorLog.objects.exclude(device_id=None).values('device_type').annotate(count=Count('device_id', distinct=True)).order_by('device_type')),
-        'visitor_devices': list(VisitorLog.objects.exclude(device_id=None).values('device_id').annotate(short_id=Min('id'), visits=Count('id'), first_seen=Min('created_at'), last_seen=Max('created_at'), device_type=Max('device_type'), ip_address=Subquery(VisitorLog.objects.filter(device_id=OuterRef('device_id')).order_by('-created_at').values('ip_address')[:1])).order_by('-last_seen')[:100]),
+        'visitor_devices': list(VisitorLog.objects.exclude(device_id=None).values('device_id').annotate(short_id=Subquery(VisitorDevice.objects.filter(device_id=OuterRef('device_id')).values('id')[:1]), visits=Count('id'), first_seen=Min('created_at'), last_seen=Max('created_at'), device_type=Max('device_type'), ip_address=Subquery(VisitorLog.objects.filter(device_id=OuterRef('device_id')).order_by('-created_at').values('ip_address')[:1]), country_code=Subquery(VisitorLog.objects.filter(device_id=OuterRef('device_id')).order_by('-created_at').values('country_code')[:1]), region=Subquery(VisitorLog.objects.filter(device_id=OuterRef('device_id')).order_by('-created_at').values('region')[:1]), city=Subquery(VisitorLog.objects.filter(device_id=OuterRef('device_id')).order_by('-created_at').values('city')[:1])).order_by('-last_seen')[:100]),
         'recent_activities': formatted_activities
     }, status=status.HTTP_200_OK)
 

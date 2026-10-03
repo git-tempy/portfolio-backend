@@ -121,11 +121,17 @@ class ContactMessage(models.Model):
     def __str__(self):
         return f"{self.name} - {self.company or 'No Company'}"
 
+class VisitorDevice(models.Model):
+    device_id = models.UUIDField(unique=True)
+
 class VisitorLog(models.Model):
     device_id = models.UUIDField(null=True, blank=True, db_index=True)
     device_type = models.CharField(max_length=10, default='unknown', choices=[('mobile','Mobile'),('tablet','Tablet'),('desktop','Desktop'),('unknown','Unknown')])
     ip_address = models.GenericIPAddressField(null=True, blank=True)
     user_agent = models.TextField(null=True, blank=True)
+    country_code = models.CharField(max_length=2, blank=True)
+    region = models.CharField(max_length=100, blank=True)
+    city = models.CharField(max_length=100, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -184,3 +190,4 @@ class LifeMoment(models.Model):
         ordering = ['-date', '-id']
     def __str__(self):
         return self.title
+

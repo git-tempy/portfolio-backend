@@ -33,6 +33,26 @@ class DeviceMediaTests(TestCase):
         for payload in ({'device_id':'bad','device_type':'desktop'},{'device_id':str(uuid.uuid4()),'device_type':'invalid'}):
             self.assertEqual(self.public.post('/api/visitor/log/',payload,format='json').status_code,400)
 
+    def test_device_numbers_ignore_repeat_visits_and_store_geo(self):
+        first = {'device_id': str(uuid.uuid4()), 'device_type': 'mobile'}
+        headers = {'HTTP_X_VERCEL_IP_COUNTRY': 'UZ', 'HTTP_X_VERCEL_IP_COUNTRY_REGION': 'TK', 'HTTP_X_VERCEL_IP_CITY': 'Tashkent'}
+        self.assertEqual(self.public.post('/api/visitor/log/', first, format='json', **headers).status_code, 201)
+        VisitorLog.objects.update(created_at=timezone.now()-timedelta(minutes=2))
+        self.public.post('/api/visitor/log/', first, format='json', **headers)
+        for _ in range(2):
+            self.public.post('/api/visitor/log/', {'device_id':str(uuid.uuid4()),'device_type':'mobile'}, format='json', **headers)
+        devices = self.admin.get('/api/dashboard/stats/').json()['visitor_devices']
+        self.assertEqual(sorted(row['short_id'] for row in devices), [1, 2, 3])
+        self.assertEqual(len(devices), 3)
+        self.assertEqual(next(row for row in devices if row['device_id']==first['device_id'])['visits'], 2)
+        self.assertTrue(all(row['country_code']=='UZ' and row['region']=='TK' and row['city']=='Tashkent' for row in devices))
+        history = self.admin.get('/api/dashboard/stats/').json()['visitor_entries']
+        self.assertEqual(len(history), 4)
+        device_history = self.admin.get('/api/dashboard/stats/', {'visits_device':first['device_id']}).json()['visitor_entries']
+        self.assertEqual(len(device_history), 2)
+        self.assertEqual({row['short_id'] for row in device_history}, {1})
+        self.assertEqual(self.admin.get('/api/dashboard/stats/', {'visits_device':'invalid'}).status_code, 400)
+
     def test_optional_images_can_be_removed_without_deleting_records(self):
         category=ProjectCategory.objects.create(name='test')
         rows=[(Skill.objects.create(name='Figma',type='Software',image='old.webp'),'/api/skills/','image'),
@@ -45,3 +65,4 @@ class DeviceMediaTests(TestCase):
                 response=self.admin.patch(f'{path}{obj.id}/',{field:None},format='json')
                 self.assertEqual(response.status_code,200,response.data)
                 obj.refresh_from_db();self.assertFalse(getattr(obj,field))
+
