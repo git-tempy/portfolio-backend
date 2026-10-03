@@ -124,6 +124,7 @@ class ContactMessage(models.Model):
 
 class VisitorDevice(models.Model):
     device_id = models.UUIDField(unique=True)
+    nickname = models.CharField(max_length=80, blank=True)
     excluded_from_analytics = models.BooleanField(default=False)
 
 class VisitorLog(models.Model):
@@ -164,7 +165,8 @@ class Education(models.Model):
 class ResumeDownloadLog(models.Model):
     name = models.CharField(max_length=255)
     phone = models.CharField(max_length=50)
-    email = models.EmailField()
+    email = models.EmailField(blank=True)
+    telegram = models.CharField(max_length=100, blank=True)
     purpose = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
 

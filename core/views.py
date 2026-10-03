@@ -567,7 +567,7 @@ def api_resume_downloads(request):
                 f"Rezyume yuklab olish so'rovi amalga oshirildi:\n\n"
                 f"Ism: {instance.name}\n"
                 f"Telefon: {instance.phone}\n"
-                f"Email: {instance.email}\n"
+                f"Telegram / Email: {instance.telegram or instance.email}\n"
                 f"Maqsad: {instance.purpose}\n"
             )
             
@@ -692,8 +692,8 @@ def api_resume_downloads(request):
                         <td class="value">{instance.phone}</td>
                       </tr>
                       <tr>
-                        <td class="label">Email:</td>
-                        <td class="value"><a href="mailto:{instance.email}" style="color: #CCFF33; text-decoration: none;">{instance.email}</a></td>
+                        <td class="label">Telegram / Email:</td>
+                        <td class="value">{instance.telegram or instance.email or "—"}</td>
                       </tr>
                     </table>
                     
@@ -885,8 +885,8 @@ def api_dashboard_stats(request):
         visits_page = max(0, int(request.query_params.get('visits_page', 0)))
     except ValueError:
         return Response({'error': 'Invalid page.'}, status=400)
-    visits = visits.annotate(short_id=Subquery(VisitorDevice.objects.filter(device_id=OuterRef('device_id')).values('id')[:1]))
-    visit_rows = list(visits.values('id', 'device_id', 'short_id', 'device_type', 'ip_address', 'country_code', 'region', 'city', 'created_at')[visits_page * 30:(visits_page + 1) * 30 + 1])
+    visits = visits.annotate(nickname=Subquery(VisitorDevice.objects.filter(device_id=OuterRef('device_id')).values('nickname')[:1]), short_id=Subquery(VisitorDevice.objects.filter(device_id=OuterRef('device_id')).values('id')[:1]))
+    visit_rows = list(visits.values('id', 'device_id', 'short_id', 'nickname', 'device_type', 'ip_address', 'country_code', 'region', 'city', 'created_at')[visits_page * 30:(visits_page + 1) * 30 + 1])
 
     return Response({
         'visitor_entries': visit_rows[:30],
@@ -931,4 +931,18 @@ def api_life_detail(request, pk):
         serializer.is_valid(raise_exception=True)
         serializer.save()
     return Response(serializer.data)
+
+@api_view(['PATCH'])
+@permission_classes([IsAdminUser])
+def api_device_nickname(request, device_id):
+    try:
+        device = VisitorDevice.objects.get(device_id=device_id)
+    except VisitorDevice.DoesNotExist:
+        return Response({'error': 'Device not found'}, status=404)
+    nickname = request.data.get('nickname')
+    if not isinstance(nickname, str) or len(nickname.strip()) > 80:
+        return Response({'error': 'Nickname must contain at most 80 characters'}, status=400)
+    device.nickname = nickname.strip()
+    device.save(update_fields=['nickname'])
+    return Response({'nickname': device.nickname})
 

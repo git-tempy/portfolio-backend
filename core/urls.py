@@ -31,7 +31,10 @@ from .views import (
 
 from .uploads import upload_url
 
+from .views import api_device_nickname
+
 urlpatterns = [
+    path('api/devices/<uuid:device_id>/nickname/', api_device_nickname),
     path('api/life/', api_life),
     path('api/life/<int:pk>/', api_life_detail),
     path('', RedirectView.as_view(url='https://desone.vercel.app/desone_adminstration', permanent=False)),
@@ -62,6 +65,7 @@ urlpatterns = [
     path('api/resume-downloads/', api_resume_downloads, name='api_resume_downloads'),
     path('api/resume-downloads/<int:pk>/', api_resume_download_detail, name='api_resume_download_detail'),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+
 
 
 
