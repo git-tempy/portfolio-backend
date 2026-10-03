@@ -1,7 +1,7 @@
 from django.conf import settings
 from django.contrib.auth import authenticate
 from django.db import transaction
-from django.db.models import Count, Max, Min
+from django.db.models import Count, Max, Min, OuterRef, Subquery
 import uuid
 from rest_framework.exceptions import ValidationError
 from .uploads import RemoteImageField
@@ -871,7 +871,7 @@ def api_dashboard_stats(request):
         'total_skills': total_skills,
         'visitor_analytics': days_data,
         'device_summary': list(VisitorLog.objects.exclude(device_id=None).values('device_type').annotate(count=Count('device_id', distinct=True)).order_by('device_type')),
-        'visitor_devices': list(VisitorLog.objects.exclude(device_id=None).values('device_id').annotate(visits=Count('id'), first_seen=Min('created_at'), last_seen=Max('created_at'), device_type=Max('device_type')).order_by('-last_seen')[:100]),
+        'visitor_devices': list(VisitorLog.objects.exclude(device_id=None).values('device_id').annotate(short_id=Min('id'), visits=Count('id'), first_seen=Min('created_at'), last_seen=Max('created_at'), device_type=Max('device_type'), ip_address=Subquery(VisitorLog.objects.filter(device_id=OuterRef('device_id')).order_by('-created_at').values('ip_address')[:1])).order_by('-last_seen')[:100]),
         'recent_activities': formatted_activities
     }, status=status.HTTP_200_OK)
 
@@ -904,3 +904,4 @@ def api_life_detail(request, pk):
         serializer.is_valid(raise_exception=True)
         serializer.save()
     return Response(serializer.data)
+
