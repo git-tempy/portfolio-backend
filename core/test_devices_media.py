@@ -52,6 +52,11 @@ class DeviceMediaTests(TestCase):
         self.assertEqual(len(device_history), 2)
         self.assertEqual({row['short_id'] for row in device_history}, {1})
         self.assertEqual(self.admin.get('/api/dashboard/stats/', {'visits_device':'invalid'}).status_code, 400)
+        for period, length in [('week',7), ('month',30), ('year',12)]:
+            chart = self.admin.get('/api/dashboard/stats/', {'period':period}).json()['visitor_analytics']
+            self.assertEqual(len(chart), length)
+            self.assertEqual(sum(row['count'] for row in chart), 4)
+            self.assertTrue(all(row['count']==sum(row['devices'].values()) for row in chart))
 
     def test_optional_images_can_be_removed_without_deleting_records(self):
         category=ProjectCategory.objects.create(name='test')

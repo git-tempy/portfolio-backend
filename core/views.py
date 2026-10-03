@@ -810,22 +810,26 @@ def api_dashboard_stats(request):
     new_messages = ContactMessage.objects.filter(status='new').count()
     total_skills = Skill.objects.count()
     
-    # 7-day visitor analytics
-    # Let's count views for the last 7 calendar days
-    today = timezone.now().date()
+    from zoneinfo import ZoneInfo
+    chart_timezone = ZoneInfo('Asia/Tashkent')
+    today = timezone.localtime(timezone.now(), chart_timezone).date()
+    period = request.query_params.get('period', 'week')
+    if period not in ('week', 'month', 'year'):
+        return Response({'error': 'Invalid analytics period.'}, status=400)
     days_data = []
-    
-    # We want Mon to Sun or last 7 days. Let's do last 7 days ending today.
-    # To map to Mon, Tue, etc., let's get the weekday labels.
-    for i in range(6, -1, -1):
-        day = today - datetime.timedelta(days=i)
-        day_start = timezone.make_aware(datetime.datetime.combine(day, datetime.time.min))
-        day_end = timezone.make_aware(datetime.datetime.combine(day, datetime.time.max))
-        count = VisitorLog.objects.filter(created_at__range=(day_start, day_end)).count()
-        days_data.append({
-            'day': day.strftime('%a'), # E.g., 'Mon', 'Tue'
-            'count': count
-        })
+    for i in range((11 if period == 'year' else 29 if period == 'month' else 6), -1, -1):
+        if period == 'year':
+            month_index = today.year * 12 + today.month - 1 - i
+            day = datetime.date(month_index // 12, month_index % 12 + 1, 1)
+            next_index = month_index + 1
+            next_day = datetime.date(next_index // 12, next_index % 12 + 1, 1)
+        else:
+            day = today - datetime.timedelta(days=i)
+            next_day = day + datetime.timedelta(days=1)
+        start = timezone.make_aware(datetime.datetime.combine(day, datetime.time.min), chart_timezone)
+        end = timezone.make_aware(datetime.datetime.combine(next_day, datetime.time.min), chart_timezone)
+        counts = dict(VisitorLog.objects.filter(created_at__gte=start, created_at__lt=end).values('device_type').annotate(total=Count('id')).values_list('device_type', 'total'))
+        days_data.append({'day':day.strftime('%a'), 'date':day.isoformat(), 'count':sum(counts.values()), 'devices':{kind:counts.get(kind, 0) for kind in ('desktop', 'mobile', 'tablet', 'unknown')}})
 
     # Recent activities
     activities = []
