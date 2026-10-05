@@ -108,6 +108,12 @@ class EducationSerializer(StorageModelSerializer):
     def validate_links(self, links):
         from urllib.parse import urlsplit
         import re
+        import json
+        if isinstance(links, str):
+            try:
+                links = json.loads(links)
+            except (ValueError, TypeError):
+                raise serializers.ValidationError('Provide valid JSON links.')
         if not isinstance(links, list) or len(links) > 10:
             raise serializers.ValidationError('Provide at most 10 links.')
         for link in links:

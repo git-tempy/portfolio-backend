@@ -7,6 +7,21 @@ from core.serializers import EducationSerializer, ResumeDownloadLogSerializer
 
 
 class EducationNavigationTests(TestCase):
+    def test_admin_form_encoded_links_persist(self):
+        import json
+        item = Education.objects.create(name='University', period='2026')
+        admin = get_user_model().objects.create_user('education-admin', is_staff=True)
+        client = APIClient()
+        client.credentials(HTTP_AUTHORIZATION='Bearer ' + issue_token(admin))
+        links = [{'kind': 'tag', 'value': 'noq', 'labels': {'uz': 'Diplom ishini ko‘rish'}}]
+        response = client.patch(f'/api/education/{item.pk}/', {'links': json.dumps(links)}, format='multipart')
+        self.assertEqual(response.status_code, 200, response.data)
+        item.refresh_from_db()
+        self.assertEqual(item.links, links)
+        serializer = EducationSerializer(item, data={'links': json.dumps(links)}, partial=True)
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        self.assertEqual(serializer.save().links, links)
+
     def test_links_persist_on_partial_update_and_reject_unsafe_destinations(self):
         item = Education.objects.create(name='University', period='2026', description='Study')
         for kind, value in [('tag', '#noq'), ('url', 'https://university.example'), ('url', '/portfolio?tag=noq')]:
