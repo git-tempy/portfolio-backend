@@ -105,18 +105,42 @@ class VisitorLogSerializer(StorageModelSerializer):
 
 
 class EducationSerializer(StorageModelSerializer):
+    def validate_links(self, links):
+        from urllib.parse import urlsplit
+        import re
+        if not isinstance(links, list) or len(links) > 10:
+            raise serializers.ValidationError('Provide at most 10 links.')
+        for link in links:
+            if not isinstance(link, dict) or link.get('kind') not in ('url', 'tag'):
+                raise serializers.ValidationError('Invalid link type.')
+            value = link.get('value', '')
+            labels = link.get('labels', {})
+            if not isinstance(value, str) or not isinstance(labels, dict) or not any(isinstance(v, str) and v.strip() for v in labels.values()):
+                raise serializers.ValidationError('Link text and destination are required.')
+            if len(value) > 2000 or any(not isinstance(v, str) or len(v) > 180 for v in labels.values()):
+                raise serializers.ValidationError('Link text or destination is too long.')
+            if link['kind'] == 'tag':
+                if not re.fullmatch(r'#?[\w-]{1,80}', value, re.UNICODE):
+                    raise serializers.ValidationError('Use one hashtag without spaces.')
+            else:
+                url = urlsplit(value)
+                if not ((url.scheme in ('http', 'https') and url.netloc and not url.username and not url.password) or (value.startswith('/') and not value.startswith('//') and not url.scheme and not url.netloc)):
+                    raise serializers.ValidationError('Use an HTTP(S) URL or a relative site path.')
+        return links
+
     class Meta:
         model = Education
         fields = [
             'id', 'logo', 'name', 'name_uz', 'name_ru', 'name_en', 'name_jp',
-            'period', 'description', 'description_uz', 'description_ru', 'description_en', 'description_jp'
+            'period', 'description', 'description_uz', 'description_ru', 'description_en', 'description_jp', 'links'
         ]
 
 
 class ResumeDownloadLogSerializer(StorageModelSerializer):
     class Meta:
         model = ResumeDownloadLog
-        fields = ['id', 'name', 'phone', 'email', 'telegram', 'purpose', 'created_at']
+        fields = ['id', 'name', 'phone', 'email', 'telegram', 'purpose', 'created_at', 'is_read']
+        read_only_fields = ['is_read']
 
 
 from .models import LifeMoment

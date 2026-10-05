@@ -157,6 +157,7 @@ class Education(models.Model):
     name = models.CharField(max_length=255)
     period = models.CharField(max_length=100)
     description = models.TextField()
+    links = models.JSONField(default=list, blank=True)
 
     def __str__(self):
         return self.name
@@ -169,6 +170,7 @@ class ResumeDownloadLog(models.Model):
     telegram = models.CharField(max_length=100, blank=True)
     purpose = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
+    is_read = models.BooleanField(default=False)
 
     def __str__(self):
         return f"{self.name} ({self.email}) at {self.created_at}"

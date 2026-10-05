@@ -729,7 +729,7 @@ def api_resume_downloads(request):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-@api_view(['DELETE'])
+@api_view(['DELETE', 'PATCH'])
 @permission_classes([IsAdminUser])
 def api_resume_download_detail(request, pk):
     try:
@@ -737,6 +737,10 @@ def api_resume_download_detail(request, pk):
     except ResumeDownloadLog.DoesNotExist:
         return Response(status=status.HTTP_404_NOT_FOUND)
         
+    if request.method == 'PATCH':
+        log.is_read = True
+        log.save(update_fields=['is_read'])
+        return Response(ResumeDownloadLogSerializer(log).data)
     log.delete()
     return Response(status=status.HTTP_204_NO_CONTENT)
 
