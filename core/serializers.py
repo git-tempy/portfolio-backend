@@ -86,6 +86,10 @@ class StableCategoryField(serializers.SlugRelatedField):
 class ProjectSerializer(StorageModelSerializer):
     type = serializers.ChoiceField(choices=['pdf','image'])
     category_id = serializers.IntegerField(source='category.pk', read_only=True)
+    category_name_uz = serializers.CharField(source='category.name_uz', read_only=True)
+    category_name_ru = serializers.CharField(source='category.name_ru', read_only=True)
+    category_name_en = serializers.CharField(source='category.name_en', read_only=True)
+    category_name_jp = serializers.CharField(source='category.name_jp', read_only=True)
     category = StableCategoryField(slug_field='name', queryset=ProjectCategory.objects.all())
     images = ProjectImageSerializer(many=True, read_only=True)
     covers = ProjectCoverSerializer(many=True, read_only=True)
@@ -94,7 +98,7 @@ class ProjectSerializer(StorageModelSerializer):
         model = Project
         fields = [
             'id', 'title', 'title_uz', 'title_ru', 'title_en', 'title_jp',
-            'slug', 'category', 'category_id', 'type', 'file', 'cover_image',
+            'slug', 'category', 'category_id', 'category_name_uz', 'category_name_ru', 'category_name_en', 'category_name_jp', 'type', 'file', 'cover_image',
             'description', 'description_uz', 'description_ru', 'description_en', 'description_jp',
             'main_hashtag', 'regular_hashtags', 'total_pages', 'images', 'covers'
         ]
