@@ -281,12 +281,38 @@ def api_category_detail(request, pk):
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+def validate_project_covers(request, project=None):
+    files = request.data.get('cover_images', []) if request.content_type == 'application/json' else request.FILES.getlist('cover_images')
+    keep = request.data.get('keep_cover_ids')
+    if not isinstance(files, list) or len(files) > 8:
+        raise ValidationError({'cover_images': 'Choose at most 8 covers.'})
+    if keep is not None:
+        if not isinstance(keep, list) or not all(isinstance(pk, int) and not isinstance(pk, bool) for pk in keep) or len(keep) != len(set(keep)):
+            raise ValidationError({'keep_cover_ids': 'Invalid cover selection.'})
+        owned = set(project.covers.values_list('id', flat=True)) if project else set()
+        if not set(keep).issubset(owned) or len(keep) + len(files) > 8:
+            raise ValidationError({'keep_cover_ids': 'Covers must belong to this project; limit 8.'})
+    if keep is None and project and project.covers.count() + len(files) > 8:
+        raise ValidationError({'cover_images': 'Choose at most 8 covers.'})
+    return keep, [RemoteImageField().run_validation(image) for image in files]
+
+
+def save_project_covers(project, keep, files):
+    from .models import ProjectCover
+    if keep is not None:
+        project.covers.exclude(id__in=keep).delete()
+        for position, pk in enumerate(keep):
+            project.covers.filter(pk=pk).update(position=position)
+    for position, image in enumerate(files, start=len(keep or [])):
+        ProjectCover.objects.create(project=project, image=image, position=position)
+
+
 @api_view(['GET', 'POST'])
 @permission_classes([PublicReadAdminWrite])
 @parser_classes([MultiPartParser, FormParser, UploadJSONParser])
 def api_projects(request):
     if request.method == 'GET':
-        projects = Project.objects.prefetch_related('images').select_related('category').order_by('-created_at')
+        projects = Project.objects.prefetch_related('images', 'covers').select_related('category').order_by('-created_at')
         serializer = ProjectSerializer(projects, many=True, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
     elif request.method == 'POST':
@@ -297,9 +323,11 @@ def api_projects(request):
                 raise ValidationError({'images': 'Upload at most 30 images.'})
             field = RemoteImageField()
             validated_images = [field.run_validation(image) for image in images_list]
+            keep_covers, cover_files = validate_project_covers(request)
             from .models import ProjectImage
             with transaction.atomic():
                 project = serializer.save()
+                save_project_covers(project, keep_covers, cover_files)
                 for position, image in enumerate(validated_images):
                     ProjectImage.objects.create(project=project, image=image, position=position)
 
@@ -344,9 +372,11 @@ def api_project_detail(request, pk_or_slug):
                     raise ValidationError({'keep_image_ids':'Images must belong to this project.'})
                 if len(keep) + len(replacement or []) > 30:
                     raise ValidationError({'images':'Upload at most 30 images.'})
+            keep_covers, cover_files = validate_project_covers(request, project)
             from .models import ProjectImage
             with transaction.atomic():
                 serializer.save()
+                save_project_covers(project, keep_covers, cover_files)
                 if keep is not None:
                     project.images.exclude(id__in=keep).delete()
                     for position, pk in enumerate(keep):
@@ -842,7 +872,7 @@ def api_dashboard_stats(request):
     activities = []
     
     # Latest projects (up to 3)
-    latest_projects = Project.objects.prefetch_related('images').select_related('category').order_by('-created_at')[:3]
+    latest_projects = Project.objects.prefetch_related('images', 'covers').select_related('category').order_by('-created_at')[:3]
     for p in latest_projects:
         # Time ago string
         time_str = timesince(p.created_at).split(',')[0] + ' ago'

@@ -55,6 +55,13 @@ class ProjectCategorySerializer(StorageModelSerializer):
         model = ProjectCategory
         fields = ['id', 'name', 'name_uz', 'name_ru', 'name_en', 'name_jp', 'status', 'projects_count']
 
+class ProjectCoverSerializer(StorageModelSerializer):
+    class Meta:
+        from .models import ProjectCover
+        model = ProjectCover
+        fields = ['id', 'image']
+
+
 class ProjectImageSerializer(StorageModelSerializer):
     class Meta:
         model = ProjectImage
@@ -81,6 +88,7 @@ class ProjectSerializer(StorageModelSerializer):
     category_id = serializers.IntegerField(source='category.pk', read_only=True)
     category = StableCategoryField(slug_field='name', queryset=ProjectCategory.objects.all())
     images = ProjectImageSerializer(many=True, read_only=True)
+    covers = ProjectCoverSerializer(many=True, read_only=True)
 
     class Meta:
         model = Project
@@ -88,7 +96,7 @@ class ProjectSerializer(StorageModelSerializer):
             'id', 'title', 'title_uz', 'title_ru', 'title_en', 'title_jp',
             'slug', 'category', 'category_id', 'type', 'file', 'cover_image',
             'description', 'description_uz', 'description_ru', 'description_en', 'description_jp',
-            'main_hashtag', 'regular_hashtags', 'total_pages', 'images'
+            'main_hashtag', 'regular_hashtags', 'total_pages', 'images', 'covers'
         ]
 
 class ContactMessageSerializer(StorageModelSerializer):

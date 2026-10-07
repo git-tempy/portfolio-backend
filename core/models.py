@@ -140,6 +140,15 @@ class VisitorLog(models.Model):
     def __str__(self):
         return f"Visitor from {self.ip_address or 'Unknown'} at {self.created_at}"
 
+class ProjectCover(models.Model):
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='covers')
+    image = models.ImageField(upload_to='projects/covers/')
+    position = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['position', 'id']
+
+
 class ProjectImage(models.Model):
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='images')
     image = models.ImageField(upload_to='projects/images/')
