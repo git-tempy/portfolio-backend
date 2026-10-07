@@ -55,9 +55,19 @@ class Experience(models.Model):
     period = models.CharField(max_length=100)
     desc = models.TextField()
     logo = models.ImageField(upload_to='experiences/logos/', null=True, blank=True)
+    animation_interval = models.PositiveIntegerField(default=700)
 
     def __str__(self):
         return f"{self.role} at {self.company}"
+
+class ExperienceFrame(models.Model):
+    experience = models.ForeignKey(Experience, on_delete=models.CASCADE, related_name='animation_frames')
+    image = models.ImageField(upload_to='experiences/frames/')
+    position = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['position', 'id']
+
 
 class ProjectCategory(models.Model):
     name = models.CharField(max_length=255, unique=True)

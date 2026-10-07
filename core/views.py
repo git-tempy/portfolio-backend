@@ -171,19 +171,63 @@ def api_trait_detail(request, pk):
 from .models import Experience
 from .serializers import ExperienceSerializer
 
+def validate_experience_frames(request, job=None):
+    files = request.data.get('animation_files', []) if request.content_type == 'application/json' else request.FILES.getlist('animation_files')
+    keep = request.data.get('keep_frame_ids')
+    order = request.data.get('animation_order')
+    if not isinstance(files, list):
+        raise ValidationError({'animation_files': 'Invalid frame files.'})
+    owned = set(job.animation_frames.values_list('id', flat=True)) if job else set()
+    if keep is not None and (not isinstance(keep, list) or not all(isinstance(pk,int) and not isinstance(pk,bool) for pk in keep) or len(keep)!=len(set(keep)) or not set(keep).issubset(owned)):
+        raise ValidationError({'keep_frame_ids': 'Frames must belong to this experience.'})
+    if order is not None:
+        if not isinstance(order,list):
+            raise ValidationError({'animation_order': 'Invalid order.'})
+        refs=[]
+        for ref in order:
+            if not isinstance(ref,dict) or len(ref)!=1 or next(iter(ref)) not in ('id','new'):
+                raise ValidationError({'animation_order': 'Invalid order.'})
+            kind,value=next(iter(ref.items()))
+            if not isinstance(value,int) or isinstance(value,bool):
+                raise ValidationError({'animation_order': 'Invalid order.'})
+            refs.append((kind,value))
+        if len(refs)!=len(set(refs)) or set(refs)!={('id',pk) for pk in (keep or [])}|{('new',i) for i in range(len(files))}:
+            raise ValidationError({'animation_order': 'Every frame must appear exactly once.'})
+    return keep,[RemoteImageField().run_validation(image) for image in files],order
+
+
+def save_experience_frames(job,keep,files,order):
+    from .models import ExperienceFrame
+    saved={}
+    if keep is not None:
+        job.animation_frames.exclude(id__in=keep).delete()
+        for position,pk in enumerate(keep):
+            saved[pk]=job.animation_frames.get(pk=pk)
+            saved[pk].position=position;saved[pk].save(update_fields=['position'])
+    start=job.animation_frames.count()
+    new=[ExperienceFrame.objects.create(experience=job,image=image,position=start+i) for i,image in enumerate(files)]
+    if order is not None:
+        for position,ref in enumerate(order):
+            frame=saved[ref['id']] if 'id' in ref else new[ref['new']]
+            frame.position=position;frame.save(update_fields=['position'])
+
+
 @api_view(['GET', 'POST'])
 @permission_classes([PublicReadAdminWrite])
 @parser_classes([MultiPartParser, FormParser, UploadJSONParser])
 def api_experiences(request):
     if request.method == 'GET':
-        jobs = Experience.objects.all()
+        jobs = Experience.objects.prefetch_related('animation_frames').all()
         serializer = ExperienceSerializer(jobs, many=True, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
     elif request.method == 'POST':
         serializer = ExperienceSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            keep,files,order=validate_experience_frames(request)
+            with transaction.atomic():
+                job=serializer.save()
+                save_experience_frames(job,keep,files,order)
+            return Response(ExperienceSerializer(job,context={'request':request}).data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['DELETE', 'PUT', 'PATCH'])
@@ -201,8 +245,11 @@ def api_experience_detail(request, pk):
     elif request.method in ['PUT', 'PATCH']:
         serializer = ExperienceSerializer(job, data=request.data, partial=True)
         if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_200_OK)
+            keep,files,order=validate_experience_frames(request,job)
+            with transaction.atomic():
+                serializer.save()
+                save_experience_frames(job,keep,files,order)
+            return Response(ExperienceSerializer(job,context={'request':request}).data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 

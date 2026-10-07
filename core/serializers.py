@@ -39,13 +39,22 @@ class TraitSerializer(StorageModelSerializer):
         model = Trait
         fields = ['id', 'text', 'text_uz', 'text_ru', 'text_en', 'text_jp', 'type']
 
+class ExperienceFrameSerializer(StorageModelSerializer):
+    class Meta:
+        from .models import ExperienceFrame
+        model = ExperienceFrame
+        fields = ['id', 'image']
+
+
 class ExperienceSerializer(StorageModelSerializer):
+    animation_frames = ExperienceFrameSerializer(many=True, read_only=True)
+    animation_interval = serializers.IntegerField(min_value=50, max_value=5000, required=False)
     class Meta:
         model = Experience
         fields = [
             'id', 'role', 'role_uz', 'role_ru', 'role_en', 'role_jp',
             'company', 'company_uz', 'company_ru', 'company_en', 'company_jp',
-            'period', 'desc', 'desc_uz', 'desc_ru', 'desc_en', 'desc_jp', 'logo'
+            'period', 'desc', 'desc_uz', 'desc_ru', 'desc_en', 'desc_jp', 'logo', 'animation_frames', 'animation_interval'
         ]
 
 class ProjectCategorySerializer(StorageModelSerializer):
