@@ -32,3 +32,24 @@ class ProjectCoverTests(TestCase):
     def test_unauthorized_write(self):
         response=APIClient().patch(self.url,{'keep_cover_ids':[]},format='json')
         self.assertIn(response.status_code,[401,403]);self.assertEqual(self.project.covers.count(),2)
+
+    def test_unified_legacy_order_and_primary_removal(self):
+        response=self.client.patch(self.url,{'keep_cover_ids':[0,self.a.id,self.b.id],'cover_order':[{'id':self.b.id},{'id':0},{'id':self.a.id}]},format='json')
+        self.assertEqual(response.status_code,200)
+        self.project.refresh_from_db();self.assertEqual(self.project.cover_image.name,'b.webp')
+        legacy=self.project.covers.get(image='legacy.webp')
+        self.client.patch(self.url,{'keep_cover_ids':[legacy.id,self.a.id],'cover_order':[{'id':legacy.id},{'id':self.a.id}]},format='json')
+        self.project.refresh_from_db();self.assertEqual(self.project.cover_image.name,'legacy.webp')
+        self.assertFalse(self.project.covers.filter(pk=self.b.id).exists())
+    def test_more_than_eight_covers_and_new_item_order(self):
+        from unittest.mock import patch
+        files=[f'new-{i}.webp' for i in range(12)]
+        order=[{'new':i} for i in reversed(range(12))]
+        with patch('core.views.RemoteImageField.to_internal_value',side_effect=lambda value=None: value):
+            response=self.client.patch(self.url,{'cover_images':files,'keep_cover_ids':[],'cover_order':order},format='json')
+        self.assertEqual(response.status_code,200)
+        self.assertEqual(self.project.covers.count(),12)
+        self.project.refresh_from_db();self.assertEqual(self.project.cover_image.name,'new-11.webp')
+    def test_invalid_order_is_atomic(self):
+        response=self.client.patch(self.url,{'title':'bad','keep_cover_ids':[self.a.id],'cover_order':[{'new':0}]},format='json')
+        self.assertEqual(response.status_code,400);self.project.refresh_from_db();self.assertNotEqual(self.project.title,'bad')

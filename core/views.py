@@ -284,27 +284,56 @@ def api_category_detail(request, pk):
 def validate_project_covers(request, project=None):
     files = request.data.get('cover_images', []) if request.content_type == 'application/json' else request.FILES.getlist('cover_images')
     keep = request.data.get('keep_cover_ids')
-    if not isinstance(files, list) or len(files) > 8:
-        raise ValidationError({'cover_images': 'Choose at most 8 covers.'})
+    order = request.data.get('cover_order')
+    if not isinstance(files, list):
+        raise ValidationError({'cover_images': 'Invalid cover files.'})
+    owned = set(project.covers.values_list('id', flat=True)) if project else set()
+    if project and project.cover_image:
+        owned.add(0)  # Legacy cover is converted only when an explicit ordered edit is saved.
     if keep is not None:
-        if not isinstance(keep, list) or not all(isinstance(pk, int) and not isinstance(pk, bool) for pk in keep) or len(keep) != len(set(keep)):
-            raise ValidationError({'keep_cover_ids': 'Invalid cover selection.'})
-        owned = set(project.covers.values_list('id', flat=True)) if project else set()
-        if not set(keep).issubset(owned) or len(keep) + len(files) > 8:
-            raise ValidationError({'keep_cover_ids': 'Covers must belong to this project; limit 8.'})
-    if keep is None and project and project.covers.count() + len(files) > 8:
-        raise ValidationError({'cover_images': 'Choose at most 8 covers.'})
-    return keep, [RemoteImageField().run_validation(image) for image in files]
+        if not isinstance(keep, list) or not all(isinstance(pk, int) and not isinstance(pk, bool) for pk in keep) or len(keep) != len(set(keep)) or not set(keep).issubset(owned):
+            raise ValidationError({'keep_cover_ids': 'Covers must belong to this project.'})
+    if order is not None:
+        expected = {('id', pk) for pk in (keep or [])} | {('new', index) for index in range(len(files))}
+        if not isinstance(order, list):
+            raise ValidationError({'cover_order': 'Invalid cover order.'})
+        refs = []
+        for ref in order:
+            if not isinstance(ref, dict) or len(ref) != 1 or next(iter(ref)) not in ('id', 'new'):
+                raise ValidationError({'cover_order': 'Invalid cover order.'})
+            kind, value = next(iter(ref.items()))
+            if not isinstance(value, int) or isinstance(value, bool):
+                raise ValidationError({'cover_order': 'Invalid cover order.'})
+            refs.append((kind, value))
+        if len(refs) != len(set(refs)) or set(refs) != expected:
+            raise ValidationError({'cover_order': 'Every cover must appear exactly once.'})
+    return keep, [RemoteImageField().run_validation(image) for image in files], order
 
 
-def save_project_covers(project, keep, files):
+def save_project_covers(project, keep, files, order=None):
     from .models import ProjectCover
+    if keep is None and not files and order is None:
+        return
+    saved = {}
     if keep is not None:
         project.covers.exclude(id__in=keep).delete()
         for position, pk in enumerate(keep):
-            project.covers.filter(pk=pk).update(position=position)
-    for position, image in enumerate(files, start=len(keep or [])):
-        ProjectCover.objects.create(project=project, image=image, position=position)
+            if pk == 0:
+                saved[0] = ProjectCover.objects.create(project=project, image=project.cover_image.name, position=position)
+            else:
+                saved[pk] = project.covers.get(pk=pk)
+                saved[pk].position = position
+                saved[pk].save(update_fields=['position'])
+    start = project.covers.count()
+    new = [ProjectCover.objects.create(project=project, image=image, position=start+index) for index, image in enumerate(files)]
+    if order is not None:
+        for position, ref in enumerate(order):
+            cover = saved[ref['id']] if 'id' in ref else new[ref['new']]
+            cover.position = position
+            cover.save(update_fields=['position'])
+        first = project.covers.first()
+        Project.objects.filter(pk=project.pk).update(cover_image=first.image.name if first else '')
+        project.cover_image = first.image.name if first else ''
 
 
 @api_view(['GET', 'POST'])
@@ -323,11 +352,11 @@ def api_projects(request):
                 raise ValidationError({'images': 'Upload at most 30 images.'})
             field = RemoteImageField()
             validated_images = [field.run_validation(image) for image in images_list]
-            keep_covers, cover_files = validate_project_covers(request)
+            keep_covers, cover_files, cover_order = validate_project_covers(request)
             from .models import ProjectImage
             with transaction.atomic():
                 project = serializer.save()
-                save_project_covers(project, keep_covers, cover_files)
+                save_project_covers(project, keep_covers, cover_files, cover_order)
                 for position, image in enumerate(validated_images):
                     ProjectImage.objects.create(project=project, image=image, position=position)
 
@@ -372,11 +401,11 @@ def api_project_detail(request, pk_or_slug):
                     raise ValidationError({'keep_image_ids':'Images must belong to this project.'})
                 if len(keep) + len(replacement or []) > 30:
                     raise ValidationError({'images':'Upload at most 30 images.'})
-            keep_covers, cover_files = validate_project_covers(request, project)
+            keep_covers, cover_files, cover_order = validate_project_covers(request, project)
             from .models import ProjectImage
             with transaction.atomic():
                 serializer.save()
-                save_project_covers(project, keep_covers, cover_files)
+                save_project_covers(project, keep_covers, cover_files, cover_order)
                 if keep is not None:
                     project.images.exclude(id__in=keep).delete()
                     for position, pk in enumerate(keep):
