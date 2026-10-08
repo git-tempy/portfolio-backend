@@ -225,10 +225,28 @@ def api_experiences(request):
         if serializer.is_valid():
             keep,files,order=validate_experience_frames(request)
             with transaction.atomic():
-                job=serializer.save()
+                from django.db.models import Max
+                last=Experience.objects.aggregate(last=Max('position'))['last']
+                job=serializer.save(position=0 if last is None else last+1)
                 save_experience_frames(job,keep,files,order)
             return Response(ExperienceSerializer(job,context={'request':request}).data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['POST'])
+@permission_classes([PublicReadAdminWrite])
+def api_experience_order(request):
+    ids=request.data.get('ids')
+    if not isinstance(ids,list) or not all(isinstance(pk,int) and not isinstance(pk,bool) for pk in ids) or len(ids)!=len(set(ids)):
+        raise ValidationError({'ids':'Provide each experience ID exactly once.'})
+    with transaction.atomic():
+        rows=list(Experience.objects.select_for_update().all())
+        if set(ids)!={row.id for row in rows}:
+            raise ValidationError({'ids':'Experience list changed. Reload and try again.'})
+        by_id={row.id:row for row in rows}
+        for position,pk in enumerate(ids): by_id[pk].position=position
+        Experience.objects.bulk_update(rows,['position'])
+    return Response(ExperienceSerializer(Experience.objects.prefetch_related('animation_frames').all(),many=True,context={'request':request}).data)
+
 
 @api_view(['DELETE', 'PUT', 'PATCH'])
 @permission_classes([PublicReadAdminWrite])

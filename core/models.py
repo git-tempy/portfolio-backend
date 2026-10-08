@@ -50,6 +50,10 @@ class Trait(models.Model):
         return f"{self.text[:30]} ({self.type})"
 
 class Experience(models.Model):
+    position = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['position', 'id']
     role = models.CharField(max_length=255)
     company = models.CharField(max_length=255)
     period = models.CharField(max_length=100)

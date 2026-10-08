@@ -47,6 +47,7 @@ class ExperienceFrameSerializer(StorageModelSerializer):
 
 
 class ExperienceSerializer(StorageModelSerializer):
+    position = serializers.IntegerField(read_only=True)
     animation_frames = ExperienceFrameSerializer(many=True, read_only=True)
     animation_interval = serializers.IntegerField(min_value=50, max_value=5000, required=False)
     class Meta:
@@ -54,7 +55,7 @@ class ExperienceSerializer(StorageModelSerializer):
         fields = [
             'id', 'role', 'role_uz', 'role_ru', 'role_en', 'role_jp',
             'company', 'company_uz', 'company_ru', 'company_en', 'company_jp',
-            'period', 'desc', 'desc_uz', 'desc_ru', 'desc_en', 'desc_jp', 'logo', 'animation_frames', 'animation_interval'
+            'period', 'desc', 'desc_uz', 'desc_ru', 'desc_en', 'desc_jp', 'logo', 'animation_frames', 'animation_interval', 'position'
         ]
 
 class ProjectCategorySerializer(StorageModelSerializer):

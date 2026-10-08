@@ -23,7 +23,7 @@ from django.conf.urls.static import static
 from .views import (
     api_life, api_life_detail, api_login, api_about, api_certificates, api_certificate_detail, 
     api_skills, api_skill_detail, api_traits, api_trait_detail, 
-    api_experiences, api_experience_detail,
+    api_experiences, api_experience_detail, api_experience_order,
     api_categories, api_category_detail, api_projects, api_project_detail,
     api_contact, api_messages, api_message_detail, api_visitor_log, api_dashboard_stats,
     api_education, api_education_detail, api_resume_downloads, api_resume_download_detail
@@ -48,6 +48,7 @@ urlpatterns = [
     path('api/skills/<int:pk>/', api_skill_detail, name='api_skill_detail'),
     path('api/traits/', api_traits, name='api_traits'),
     path('api/traits/<int:pk>/', api_trait_detail, name='api_trait_detail'),
+    path('api/experiences/order/', api_experience_order, name='api_experience_order'),
     path('api/experiences/', api_experiences, name='api_experiences'),
     path('api/experiences/<int:pk>/', api_experience_detail, name='api_experience_detail'),
     path('api/education/', api_education, name='api_education'),
