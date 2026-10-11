@@ -279,7 +279,7 @@ from .serializers import EducationSerializer
 @parser_classes([MultiPartParser, FormParser, UploadJSONParser])
 def api_education(request):
     if request.method == 'GET':
-        items = Education.objects.all()
+        items = Education.objects.order_by('id')
         serializer = EducationSerializer(items, many=True, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
     elif request.method == 'POST':
