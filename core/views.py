@@ -1,7 +1,7 @@
 from django.conf import settings
 from django.contrib.auth import authenticate
 from django.db import transaction
-from django.db.models import Count, Max, Min, OuterRef, Subquery
+from django.db.models import Case, Count, IntegerField, Max, Min, OuterRef, Subquery, Value, When
 import uuid
 from urllib.parse import unquote
 from .models import VisitorDevice
@@ -279,7 +279,10 @@ from .serializers import EducationSerializer
 @parser_classes([MultiPartParser, FormParser, UploadJSONParser])
 def api_education(request):
     if request.method == 'GET':
-        items = Education.objects.order_by('id')
+        # Existing institution record IDs: JDU, World Languages, Kyoto Tachibana.
+        items = Education.objects.order_by(Case(
+            When(id=2, then=Value(0)), When(id=3, then=Value(1)),
+            When(id=1, then=Value(2)), default=Value(3), output_field=IntegerField()), 'id')
         serializer = EducationSerializer(items, many=True, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
     elif request.method == 'POST':
