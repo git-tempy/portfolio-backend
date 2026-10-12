@@ -17,7 +17,7 @@ class AboutMeSerializer(StorageModelSerializer):
         fields = [
             'name', 'name_uz', 'name_ru', 'name_en', 'name_jp',
             'bio', 'bio_uz', 'bio_ru', 'bio_en', 'bio_jp',
-            'image', 'resume_pdf'
+            'image', 'resume_pdf', 'resume_pdf_uz', 'resume_pdf_ru', 'resume_pdf_en', 'resume_pdf_jp'
         ]
 
 class CertificateSerializer(StorageModelSerializer):

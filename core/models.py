@@ -5,6 +5,10 @@ class AboutMe(models.Model):
     bio = models.TextField(default="")
     image = models.ImageField(upload_to='about/', null=True, blank=True)
     resume_pdf = models.FileField(upload_to='about/resume/', null=True, blank=True)
+    resume_pdf_uz = models.FileField(upload_to='about/resume/uz/', null=True, blank=True)
+    resume_pdf_ru = models.FileField(upload_to='about/resume/ru/', null=True, blank=True)
+    resume_pdf_en = models.FileField(upload_to='about/resume/en/', null=True, blank=True)
+    resume_pdf_jp = models.FileField(upload_to='about/resume/jp/', null=True, blank=True)
 
     def __str__(self):
         return self.name
