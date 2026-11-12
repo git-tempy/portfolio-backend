@@ -30,10 +30,12 @@ from .views import (
 )
 
 from .uploads import upload_url
+from .protected_media import protected_image
 
 from .views import api_device_nickname
 
 urlpatterns = [
+    path('api/media/image/<str:token>/preview.webp', protected_image, name='protected_image'),
     path('api/devices/<uuid:device_id>/nickname/', api_device_nickname),
     path('api/life/', api_life),
     path('api/life/<int:pk>/', api_life_detail),

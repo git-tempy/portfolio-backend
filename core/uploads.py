@@ -12,6 +12,8 @@ from rest_framework.permissions import IsAdminUser
 from rest_framework.parsers import JSONParser
 from rest_framework.exceptions import ParseError
 from rest_framework.response import Response
+from .image_processing import web_image
+from .protected_media import protected_image_url, IMAGE_EXTENSIONS
 
 UPLOAD_SALT = 'portfolio-upload-v1'
 TYPES = {'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp', 'application/pdf': '.pdf'}
@@ -45,7 +47,9 @@ def upload_url(request):
     limit = 25 * 1024 * 1024 if content_type == 'application/pdf' else 40 * 1024 * 1024
     if content_type not in TYPES or not isinstance(size, int) or isinstance(size, bool) or not 0 < size <= limit:
         return Response({'error': 'Unsupported file type or size.'}, status=400)
-    key = f'uploads/{request.user.pk}/{uuid.uuid4().hex}{TYPES[content_type]}'
+    # Staging/original images are never returned by public serializers.
+    prefix = 'uploads' if content_type == 'application/pdf' else 'private/originals'
+    key = f'{prefix}/{request.user.pk}/{uuid.uuid4().hex}{TYPES[content_type]}'
     storage = default_storage
     if not hasattr(storage, 'bucket_name'):
         return Response({'error': 'Object storage is not configured.'}, status=503)
@@ -76,6 +80,12 @@ class UploadJSONParser(JSONParser):
                     if len(content) != receipt['size']:
                         raise ValueError('Upload length mismatch')
                     validate_media(content, receipt['type'])
+                    if receipt['type'].startswith('image/'):
+                        preview = web_image(content, receipt['key'])
+                        # Persist the derivative before exposing it to a model.
+                        # Never modify/delete the original or its content type.
+                        key = default_storage.save(f'uploads/{user.pk}/{uuid.uuid4().hex}.webp', preview)
+                        return VerifiedStorageKey(key)
                     return VerifiedStorageKey(receipt['key'])
                 except Exception as exc:
                     raise ParseError('Invalid or expired file upload.') from exc
@@ -87,6 +97,11 @@ class UploadJSONParser(JSONParser):
         return resolve(data)
 
 class RemoteFileField(serializers.FileField):
+    def to_representation(self, value):
+        if value and PurePosixPath(value.name).suffix.lower() in IMAGE_EXTENSIONS:
+            return protected_image_url(value.name)
+        return super().to_representation(value)
+
     def to_internal_value(self, data):
         if isinstance(data, VerifiedStorageKey):
             return str(data)
@@ -98,9 +113,14 @@ class RemoteFileField(serializers.FileField):
         content = file.read()
         file.seek(0)
         validate_media(content, content_type)
+        if content_type.startswith('image/'):
+            return web_image(content, file.name)
         return file
 
 class RemoteImageField(serializers.ImageField):
+    def to_representation(self, value):
+        return protected_image_url(value.name) if value else None
+
     def to_internal_value(self, data):
         if isinstance(data, VerifiedStorageKey) and not data.endswith('.pdf'):
             return str(data)
@@ -108,4 +128,4 @@ class RemoteImageField(serializers.ImageField):
         content = image.read()
         image.seek(0)
         validate_media(content, image.content_type)
-        return image
+        return web_image(content, image.name)
